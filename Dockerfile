@@ -6,7 +6,9 @@ RUN npm ci --legacy-peer-deps
 COPY tsconfig.json prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
-RUN npm run build
+# Prisma requires a syntactically valid URL while generating the client, but no
+# database connection is made during the image build.
+RUN DATABASE_URL=postgresql://build:build@localhost:5432/build npm run build
 
 FROM node:20-bookworm-slim AS runtime
 
@@ -28,4 +30,6 @@ COPY prisma ./prisma
 
 USER node
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
 CMD ["node", "dist/server.js"]
